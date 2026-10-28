@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+.expo/
+web-build/
+
+# Environment secrets
+.env
+.env.local
+.env.*.local
+
+# Uploaded user content (local-disk storage in dev)
+backend/uploads/
+demo-uploads/
+
+# Expo prebuild output (regenerated via `expo prebuild`, not hand-maintained)
+mobile/android/
+mobile/ios/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
