@@ -139,7 +139,7 @@ export class ServiceService {
         sortClause = 'ORDER BY s.review_count DESC, s.rating DESC';
         break;
       case 'nearest':
-        if (latitude && longitude) {
+        if (latitude !== undefined && longitude !== undefined) {
           sortClause = `ORDER BY ST_Distance(u.location::geography, ST_SetSRID(ST_Point($${paramIndex - 3}, $${paramIndex - 2}), 4326)::geography) ASC`;
         }
         break;
