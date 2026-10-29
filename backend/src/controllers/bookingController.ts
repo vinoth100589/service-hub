@@ -107,6 +107,7 @@ export class BookingController {
       const result = await query(
         `UPDATE bookings b SET status = 'accepted', accepted_at = NOW()
          WHERE b.id = $1 AND b.provider_id = (SELECT id FROM providers WHERE user_id = $2)
+           AND b.status = 'requested'
          RETURNING *, (SELECT name FROM services WHERE id = b.service_id) as service_name`,
         [req.params.id, req.user.id]
       );
@@ -133,6 +134,7 @@ export class BookingController {
       const result = await query(
         `UPDATE bookings b SET status = 'rejected', cancelled_at = NOW(), cancelled_by = 'provider'
          WHERE b.id = $1 AND b.provider_id = (SELECT id FROM providers WHERE user_id = $2)
+           AND b.status = 'requested'
          RETURNING *, (SELECT name FROM services WHERE id = b.service_id) as service_name`,
         [req.params.id, req.user.id]
       );
@@ -159,6 +161,7 @@ export class BookingController {
       const result = await query(
         `UPDATE bookings b SET status = 'completed', completed_at = NOW()
          WHERE b.id = $1 AND (b.user_id = $2 OR b.provider_id = (SELECT id FROM providers WHERE user_id = $2))
+           AND b.status = 'accepted'
          RETURNING *, (SELECT name FROM services WHERE id = b.service_id) as service_name,
                    (SELECT user_id FROM providers WHERE id = b.provider_id) as provider_user_id`,
         [req.params.id, req.user.id]
@@ -186,7 +189,8 @@ export class BookingController {
       if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
 
       const result = await query(
-        `UPDATE bookings SET status = 'cancelled', cancelled_at = NOW(), cancelled_by = 'user' WHERE id = $1 AND user_id = $2
+        `UPDATE bookings SET status = 'cancelled', cancelled_at = NOW(), cancelled_by = 'user'
+         WHERE id = $1 AND user_id = $2 AND status IN ('requested', 'accepted')
          RETURNING *`,
         [req.params.id, req.user.id]
       );
