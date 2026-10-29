@@ -3,6 +3,19 @@ import { query, getClient } from '@config/database';
 import { v4 as uuidv4 } from 'uuid';
 import { NotificationService } from '@services/notificationService';
 
+// Shared by submit/update/delete — a provider's average_rating and
+// total_reviews are derived columns on `providers`, not computed on read, so
+// every mutation that changes which reviews count toward them must recompute
+// both here or the provider's displayed rating goes stale.
+export async function recomputeProviderRating(revieweeId: string) {
+  await query(
+    `UPDATE providers SET average_rating = COALESCE((SELECT AVG(rating) FROM reviews WHERE reviewee_id = $1), 0),
+     total_reviews = (SELECT COUNT(*) FROM reviews WHERE reviewee_id = $1)
+     WHERE user_id = $1`,
+    [revieweeId]
+  );
+}
+
 export class ReviewController {
   static async submitReview(req: Request, res: Response) {
     try {
@@ -27,13 +40,7 @@ export class ReviewController {
         [reviewId, booking_id, req.user.id, bookingResult.rows[0].reviewee_id, rating, title, content, cleanliness_rating, professionalism_rating, punctuality_rating, value_rating]
       );
 
-      // Update provider average rating
-      const ratingResult = await query(
-        `UPDATE providers SET average_rating = (SELECT AVG(rating) FROM reviews WHERE reviewee_id = $1),
-         total_reviews = (SELECT COUNT(*) FROM reviews WHERE reviewee_id = $1)
-         WHERE user_id = $1 RETURNING average_rating, total_reviews`,
-        [bookingResult.rows[0].reviewee_id]
-      );
+      await recomputeProviderRating(bookingResult.rows[0].reviewee_id);
 
       NotificationService.create(
         bookingResult.rows[0].reviewee_id,
@@ -93,6 +100,11 @@ export class ReviewController {
       );
 
       if (!result.rows.length) return res.status(404).json({ error: 'Review not found' });
+
+      if (rating !== undefined) {
+        await recomputeProviderRating(result.rows[0].reviewee_id);
+      }
+
       return res.status(200).json({ message: 'Review updated', data: result.rows[0] });
     } catch (error: any) {
       return res.status(500).json({ error: error.message });
@@ -151,8 +163,13 @@ export class ReviewController {
     try {
       if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
 
-      const result = await query('DELETE FROM reviews WHERE id = $1 AND reviewer_id = $2 RETURNING id', [req.params.id, req.user.id]);
+      const result = await query(
+        'DELETE FROM reviews WHERE id = $1 AND reviewer_id = $2 RETURNING id, reviewee_id',
+        [req.params.id, req.user.id]
+      );
       if (!result.rows.length) return res.status(404).json({ error: 'Review not found' });
+
+      await recomputeProviderRating(result.rows[0].reviewee_id);
 
       return res.status(200).json({ message: 'Review deleted' });
     } catch (error: any) {
