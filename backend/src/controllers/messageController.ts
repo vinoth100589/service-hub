@@ -24,6 +24,14 @@ export class MessageController {
         return res.status(403).json({ error: 'Not a participant in this booking' });
       }
 
+      // The only other participant a message in this booking can go to — never
+      // trust the client's receiver_id, or any participant could address a
+      // message (and its notification) to an arbitrary third-party user.
+      const otherParticipantId = req.user.id === customer_id ? provider_user_id : customer_id;
+      if (receiver_id !== otherParticipantId) {
+        return res.status(400).json({ error: 'receiver_id must be the other participant in this booking' });
+      }
+
       const messageId = uuidv4();
       const result = await query(
         `INSERT INTO messages (id, booking_id, sender_id, receiver_id, content, file_url)

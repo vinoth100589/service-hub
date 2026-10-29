@@ -256,7 +256,14 @@ export class PaymentController {
         [req.user.id]
       );
 
-      const totalEarnings = result.rows.reduce((sum: number, row: any) => sum + (row.provider_payout_amount || 0), 0);
+      // provider_payout_amount is a DECIMAL column — pg returns it as a string,
+      // so summing it with plain `+` against a numeric accumulator would
+      // silently string-concatenate every row instead of adding them.
+      const totalEarnings = Number(
+        result.rows
+          .reduce((sum: number, row: any) => sum + (parseFloat(row.provider_payout_amount) || 0), 0)
+          .toFixed(2)
+      );
 
       return res.status(200).json({
         data: result.rows,
