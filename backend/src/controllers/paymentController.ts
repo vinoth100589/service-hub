@@ -117,8 +117,14 @@ export class PaymentController {
 
       if (!result.rows.length) return res.status(404).json({ error: 'Payment not found' });
 
-      // Update booking status to accepted
-      await query('UPDATE bookings SET status = \'in_progress\' WHERE id = (SELECT booking_id FROM payments WHERE id = $1)', [payment_id]);
+      // Only advance a booking that's still accepted — it may have been
+      // cancelled between createPaymentIntent's check and this confirmation,
+      // and a completed payment shouldn't silently revive a cancelled booking.
+      await query(
+        `UPDATE bookings SET status = 'in_progress'
+         WHERE id = (SELECT booking_id FROM payments WHERE id = $1) AND status = 'accepted'`,
+        [payment_id]
+      );
 
       return res.status(200).json({ message: 'Payment confirmed', data: result.rows[0] });
     } catch (error: any) {
@@ -220,7 +226,8 @@ export class PaymentController {
             [intent.id]
           );
           await query(
-            `UPDATE bookings SET status = 'in_progress' WHERE id = (SELECT booking_id FROM payments WHERE stripe_payment_intent_id = $1)`,
+            `UPDATE bookings SET status = 'in_progress'
+             WHERE id = (SELECT booking_id FROM payments WHERE stripe_payment_intent_id = $1) AND status = 'accepted'`,
             [intent.id]
           );
           break;

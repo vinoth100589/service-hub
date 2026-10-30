@@ -15,6 +15,7 @@ jest.mock('@services/stripeService', () => ({
 
 import { Request, Response } from 'express';
 import { query } from '@config/database';
+import { StripeService } from '@services/stripeService';
 import { PaymentController } from '../src/controllers/paymentController';
 
 const mockQuery = query as jest.Mock;
@@ -81,5 +82,47 @@ describe('PaymentController.getPayouts', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ total_earnings: 10.01 }),
     );
+  });
+});
+
+// Regression coverage: a booking can only be cancelled (bookingController)
+// while still 'requested' or 'accepted', but before this fix these two sites
+// advanced a booking straight to 'in_progress' with no status check at all —
+// so a payment confirmed after the customer cancelled would silently revive
+// the booking. Both now require status = 'accepted'; this just asserts the
+// guard clause is present, since the booking outcome itself lives in the DB.
+describe('PaymentController.confirmPayment', () => {
+  it('only advances a booking to in_progress if it is still accepted', async () => {
+    (StripeService.isConfigured as jest.Mock).mockReturnValue(false);
+    mockQuery.mockResolvedValueOnce({ rows: [{ stripe_payment_intent_id: null }] }); // payment lookup
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'payment-1' }] }); // payments UPDATE
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // bookings UPDATE
+
+    const req = mockReq({ body: { payment_id: 'payment-1', stripe_charge_id: 'ch_1' } } as any);
+    const res = mockRes();
+    await PaymentController.confirmPayment(req, res);
+
+    const bookingUpdateCall = mockQuery.mock.calls[2];
+    expect(bookingUpdateCall[0]).toContain("status = 'accepted'");
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+});
+
+describe('PaymentController.handleWebhook payment_intent.succeeded', () => {
+  it('only advances the booking to in_progress if it is still accepted', async () => {
+    (StripeService.constructWebhookEvent as jest.Mock).mockReturnValue({
+      type: 'payment_intent.succeeded',
+      data: { object: { id: 'pi_123' } },
+    });
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // payments UPDATE
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // bookings UPDATE
+
+    const req = mockReq({ headers: { 'stripe-signature': 'sig' }, body: Buffer.from('{}') } as any);
+    const res = mockRes();
+    await PaymentController.handleWebhook(req, res);
+
+    const bookingUpdateCall = mockQuery.mock.calls[1];
+    expect(bookingUpdateCall[0]).toContain("status = 'accepted'");
+    expect(res.status).toHaveBeenCalledWith(200);
   });
 });
