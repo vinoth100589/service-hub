@@ -16,5 +16,11 @@
   "ignorePatterns": ["dist", "node_modules"],
   "rules": {
     "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx"],
+      "env": { "jest": true }
+    }
+  ]
 }
