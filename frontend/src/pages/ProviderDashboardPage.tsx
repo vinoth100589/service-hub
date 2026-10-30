@@ -28,7 +28,7 @@ export default function ProviderDashboardPage() {
           setTotalEarnings(payoutsRes.value.total_earnings)
         }
         if (bookingsRes.status === 'fulfilled') {
-          setPendingBookings(bookingsRes.value.data.filter((b) => b.status === 'pending'))
+          setPendingBookings(bookingsRes.value.data.filter((b) => b.status === 'requested'))
         }
       })
       .catch((err: Error) => toast.error(err.message))

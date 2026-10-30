@@ -44,10 +44,15 @@ export interface Service {
   distance_km?: number | null
 }
 
+// Must match the backend's bookings.status column exactly (see
+// database/schema/tables.sql and bookingController.ts) — a value here that
+// the backend never actually sets (the previous 'pending') silently breaks
+// every status-dependent check in the UI instead of failing loudly.
 export type BookingStatus =
-  | 'pending'
+  | 'requested'
   | 'accepted'
   | 'rejected'
+  | 'in_progress'
   | 'completed'
   | 'cancelled'
 
