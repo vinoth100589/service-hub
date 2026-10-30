@@ -13,9 +13,14 @@ jest.mock('@services/stripeService', () => ({
   },
 }));
 
+jest.mock('@services/notificationService', () => ({
+  NotificationService: { create: jest.fn() },
+}));
+
 import { Request, Response } from 'express';
 import { query } from '@config/database';
 import { StripeService } from '@services/stripeService';
+import { NotificationService } from '@services/notificationService';
 import { PaymentController } from '../src/controllers/paymentController';
 
 const mockQuery = query as jest.Mock;
@@ -33,6 +38,7 @@ function mockReq(overrides: Partial<Request> = {}): Request {
 
 beforeEach(() => {
   mockQuery.mockReset();
+  (NotificationService.create as jest.Mock).mockReset();
 });
 
 describe('PaymentController.getPayouts', () => {
@@ -97,6 +103,7 @@ describe('PaymentController.confirmPayment', () => {
     mockQuery.mockResolvedValueOnce({ rows: [{ stripe_payment_intent_id: null }] }); // payment lookup
     mockQuery.mockResolvedValueOnce({ rows: [{ id: 'payment-1' }] }); // payments UPDATE
     mockQuery.mockResolvedValueOnce({ rows: [] }); // bookings UPDATE
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // notifyProviderOfPayment lookup
 
     const req = mockReq({ body: { payment_id: 'payment-1', stripe_charge_id: 'ch_1' } } as any);
     const res = mockRes();
@@ -105,6 +112,28 @@ describe('PaymentController.confirmPayment', () => {
     const bookingUpdateCall = mockQuery.mock.calls[2];
     expect(bookingUpdateCall[0]).toContain("status = 'accepted'");
     expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('notifies the provider once the payment is confirmed', async () => {
+    (StripeService.isConfigured as jest.Mock).mockReturnValue(false);
+    mockQuery.mockResolvedValueOnce({ rows: [{ stripe_payment_intent_id: null }] }); // payment lookup
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'payment-1' }] }); // payments UPDATE
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // bookings UPDATE
+    mockQuery.mockResolvedValueOnce({
+      rows: [{ provider_payout_amount: '42.50', provider_user_id: 'provider-user-1' }],
+    }); // notifyProviderOfPayment lookup
+
+    const req = mockReq({ body: { payment_id: 'payment-1', stripe_charge_id: 'ch_1' } } as any);
+    const res = mockRes();
+    await PaymentController.confirmPayment(req, res);
+
+    expect(NotificationService.create).toHaveBeenCalledWith(
+      'provider-user-1',
+      'payment_received',
+      expect.any(String),
+      expect.stringContaining('42.50'),
+      'payment-1',
+    );
   });
 });
 
@@ -124,5 +153,44 @@ describe('PaymentController.handleWebhook payment_intent.succeeded', () => {
     const bookingUpdateCall = mockQuery.mock.calls[1];
     expect(bookingUpdateCall[0]).toContain("status = 'accepted'");
     expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('notifies the provider when the payment row is actually transitioned to completed', async () => {
+    (StripeService.constructWebhookEvent as jest.Mock).mockReturnValue({
+      type: 'payment_intent.succeeded',
+      data: { object: { id: 'pi_123' } },
+    });
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'payment-1' }] }); // payments UPDATE
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // bookings UPDATE
+    mockQuery.mockResolvedValueOnce({
+      rows: [{ provider_payout_amount: '10.00', provider_user_id: 'provider-user-1' }],
+    }); // notifyProviderOfPayment lookup
+
+    const req = mockReq({ headers: { 'stripe-signature': 'sig' }, body: Buffer.from('{}') } as any);
+    const res = mockRes();
+    await PaymentController.handleWebhook(req, res);
+
+    expect(NotificationService.create).toHaveBeenCalledWith(
+      'provider-user-1',
+      'payment_received',
+      expect.any(String),
+      expect.stringContaining('10.00'),
+      'payment-1',
+    );
+  });
+
+  it('does not notify when the payment was already completed (status != completed matched nothing)', async () => {
+    (StripeService.constructWebhookEvent as jest.Mock).mockReturnValue({
+      type: 'payment_intent.succeeded',
+      data: { object: { id: 'pi_123' } },
+    });
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // payments UPDATE (no row matched)
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // bookings UPDATE
+
+    const req = mockReq({ headers: { 'stripe-signature': 'sig' }, body: Buffer.from('{}') } as any);
+    const res = mockRes();
+    await PaymentController.handleWebhook(req, res);
+
+    expect(NotificationService.create).not.toHaveBeenCalled();
   });
 });
