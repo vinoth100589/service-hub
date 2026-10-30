@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { query } from '@config/database';
+import { NotificationService } from '@services/notificationService';
 
 export class AdminController {
   static async getDashboard(req: Request, res: Response) {
@@ -119,15 +120,41 @@ export class AdminController {
       const { dispute_id } = req.params;
       const { resolution, refund_amount } = req.body;
 
+      // Only an open/under_review dispute can be resolved — without this, a
+      // second resolveDispute call could silently overwrite an already
+      // recorded resolution and refund_amount with different values.
       const result = await query(
         `UPDATE disputes SET status = 'resolved', resolution = $2, refund_amount = $3, resolved_by_admin = $4, resolved_at = NOW()
-         WHERE id = $1
+         WHERE id = $1 AND status IN ('open', 'under_review')
          RETURNING *`,
         [dispute_id, resolution, refund_amount, req.user.id]
       );
 
       if (!result.rows.length) return res.status(404).json({ error: 'Dispute not found' });
-      return res.status(200).json({ message: 'Dispute resolved', data: result.rows[0] });
+      const dispute = result.rows[0];
+
+      // Neither party was ever told a dispute they're in had been resolved —
+      // notify both the customer and the provider now.
+      const participants = await query(
+        `SELECT b.user_id as customer_id, p.user_id as provider_user_id
+         FROM bookings b JOIN providers p ON b.provider_id = p.id
+         WHERE b.id = $1`,
+        [dispute.booking_id]
+      );
+      if (participants.rows.length) {
+        const { customer_id, provider_user_id } = participants.rows[0];
+        for (const userId of [customer_id, provider_user_id]) {
+          NotificationService.create(
+            userId,
+            'dispute_resolved',
+            'Dispute resolved',
+            `Your dispute "${dispute.title}" has been resolved: ${resolution}`,
+            dispute.id
+          );
+        }
+      }
+
+      return res.status(200).json({ message: 'Dispute resolved', data: dispute });
     } catch (error: any) {
       return res.status(500).json({ error: error.message });
     }

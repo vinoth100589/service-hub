@@ -9,7 +9,8 @@ export type NotificationType =
   | 'booking_cancelled'
   | 'message_received'
   | 'review_posted'
-  | 'payment_received';
+  | 'payment_received'
+  | 'dispute_resolved';
 
 export class NotificationService {
   // Fire-and-forget: a failed notification insert should never break the
