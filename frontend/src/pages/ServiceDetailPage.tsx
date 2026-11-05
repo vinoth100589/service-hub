@@ -31,7 +31,7 @@ export default function ServiceDetailPage() {
       .getById(serviceId)
       .then((res) => {
         setService(res.data)
-        setReviews((res.recent_reviews as Review[] | undefined) ?? [])
+        setReviews(res.data.recent_reviews ?? [])
       })
       .catch((err: Error) => toast.error(err.message))
       .finally(() => setLoading(false))
@@ -83,18 +83,18 @@ export default function ServiceDetailPage() {
           <p className="mt-4 text-gray-700">{service.description}</p>
           <p className="mt-4 text-lg font-semibold text-primary-700">{priceLabel}</p>
 
-          {service.provider && (
+          {service.business_name && (
             <div className="mt-6 border-t border-gray-100 pt-4">
               <p className="text-sm font-medium text-gray-900">
-                Provided by {service.provider.business_name}
+                Provided by {service.business_name}
               </p>
               <RatingStars
-                rating={service.provider.average_rating}
-                reviewCount={service.provider.total_reviews}
+                rating={service.average_rating ?? 0}
+                reviewCount={service.total_reviews ?? 0}
               />
               <p className="mt-1 text-xs text-gray-500">
-                {service.provider.total_bookings} completed bookings ·{' '}
-                {service.provider.verification_status}
+                {service.total_bookings ?? 0} completed bookings ·{' '}
+                {service.verification_status}
               </p>
             </div>
           )}

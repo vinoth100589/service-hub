@@ -26,6 +26,11 @@ export interface Provider {
 
 export type PriceUnit = 'flat_rate' | 'hourly'
 
+// The backend's ServiceService.listServices/getServiceById join services
+// straight onto providers/users and select the provider's columns flat on
+// the same row (see backend/src/services/serviceService.ts) — it never
+// nests them under a `provider` object, so these fields live directly on
+// Service rather than behind a `provider?: Provider` field.
 export interface Service {
   id: string
   provider_id: string
@@ -40,8 +45,22 @@ export interface Service {
   review_count: number
   images: string[]
   created_at: string
-  provider?: Provider
   distance_km?: number | null
+  business_name?: string
+  average_rating?: number
+  total_reviews?: number
+  total_bookings?: number
+  verification_status?: Provider['verification_status']
+  response_time_minutes?: number
+  cancellation_rate?: number
+  user_id?: string
+  first_name?: string
+  last_name?: string
+  avatar_url?: string
+  bio?: string
+  // Only present on the getServiceById response (nested under `data`, not
+  // alongside it — see ServiceController.getServiceById).
+  recent_reviews?: Review[]
 }
 
 // Must match the backend's bookings.status column exactly (see

@@ -43,9 +43,7 @@ export const serviceService = {
     api.get<ApiListResponse<string> & { data: string[] }>('/services/categories').then((r) => r.data),
 
   getById: (serviceId: string) =>
-    api
-      .get<ApiItemResponse<Service> & { recent_reviews?: unknown[] }>(`/services/${serviceId}`)
-      .then((r) => r.data),
+    api.get<ApiItemResponse<Service>>(`/services/${serviceId}`).then((r) => r.data),
 
   getProviderProfile: (providerId: string) =>
     api.get(`/services/provider/${providerId}/profile`).then((r) => r.data),

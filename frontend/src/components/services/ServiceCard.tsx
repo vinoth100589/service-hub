@@ -30,8 +30,8 @@ export default function ServiceCard({ service }: { service: Service }) {
         )}
       </div>
 
-      {service.provider && (
-        <p className="text-xs text-gray-500">by {service.provider.business_name}</p>
+      {service.business_name && (
+        <p className="text-xs text-gray-500">by {service.business_name}</p>
       )}
     </Link>
   )
