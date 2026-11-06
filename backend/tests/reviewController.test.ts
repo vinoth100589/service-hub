@@ -111,6 +111,7 @@ describe('ReviewController.deleteReview', () => {
 describe('ReviewController.submitReview', () => {
   it('recomputes the provider rating after inserting the new review', async () => {
     mockQuery.mockResolvedValueOnce({ rows: [{ reviewee_id: 'provider-user-1' }] }); // booking lookup
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // duplicate-review check (none found)
     mockQuery.mockResolvedValueOnce({ rows: [{ id: 'review-1' }] }); // insert
     mockQuery.mockResolvedValueOnce({ rows: [] }); // recompute UPDATE
 
@@ -118,9 +119,27 @@ describe('ReviewController.submitReview', () => {
     const res = mockRes();
     await ReviewController.submitReview(req, res);
 
-    expect(mockQuery).toHaveBeenCalledTimes(3);
-    expect(mockQuery.mock.calls[2][0]).toContain('UPDATE providers SET average_rating');
-    expect(mockQuery.mock.calls[2][1]).toEqual(['provider-user-1']);
+    expect(mockQuery).toHaveBeenCalledTimes(4);
+    expect(mockQuery.mock.calls[3][0]).toContain('UPDATE providers SET average_rating');
+    expect(mockQuery.mock.calls[3][1]).toEqual(['provider-user-1']);
     expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('rejects a second review for a booking that already has one, instead of hitting the UNIQUE constraint', async () => {
+    // Regression test: reviews.booking_id is UNIQUE — without this guard the
+    // INSERT itself throws and the generic catch returns a raw Postgres
+    // error message as a 500 instead of a clean 400.
+    mockQuery.mockResolvedValueOnce({ rows: [{ reviewee_id: 'provider-user-1' }] }); // booking lookup
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'existing-review' }] }); // duplicate-review check (found)
+
+    const req = mockReq({ body: { booking_id: 'booking-1', rating: 5 } } as any);
+    const res = mockRes();
+    await ReviewController.submitReview(req, res);
+
+    expect(mockQuery).toHaveBeenCalledTimes(2);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.stringContaining('already reviewed') }),
+    );
   });
 });

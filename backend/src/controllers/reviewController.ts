@@ -32,6 +32,14 @@ export class ReviewController {
       );
       if (!bookingResult.rows.length) return res.status(400).json({ error: 'Invalid or incomplete booking' });
 
+      // reviews.booking_id is UNIQUE — without this check, a second review
+      // attempt on the same booking hits that constraint directly and the
+      // generic catch below returns the raw Postgres error message as a 500.
+      const existingReview = await query('SELECT id FROM reviews WHERE booking_id = $1', [booking_id]);
+      if (existingReview.rows.length) {
+        return res.status(400).json({ error: 'You have already reviewed this booking' });
+      }
+
       const reviewId = uuidv4();
       const result = await query(
         `INSERT INTO reviews (id, booking_id, reviewer_id, reviewee_id, rating, title, content, cleanliness_rating, professionalism_rating, punctuality_rating, value_rating)
