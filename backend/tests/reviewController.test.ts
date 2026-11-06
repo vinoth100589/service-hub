@@ -48,6 +48,38 @@ describe('recomputeProviderRating', () => {
   });
 });
 
+// Regression coverage: the frontend's reviewService.list() has always
+// called GET /reviews to fetch the current user's own reviews, but no such
+// route (or controller method) existed until now — the call 404'd.
+describe('ReviewController.listMyReviews', () => {
+  it('rejects an unauthenticated request', async () => {
+    const req = mockReq({ user: undefined } as any);
+    const res = mockRes();
+    await ReviewController.listMyReviews(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
+
+  it('returns only reviews written by the current user, newest first', async () => {
+    mockQuery.mockResolvedValueOnce({
+      rows: [{ id: 'review-1', reviewer_id: 'user-1', service_name: 'Deep clean' }],
+    });
+
+    const req = mockReq();
+    const res = mockRes();
+    await ReviewController.listMyReviews(req, res);
+
+    const [sql, params] = mockQuery.mock.calls[0];
+    expect(sql).toContain('WHERE r.reviewer_id = $1');
+    expect(sql).toContain('ORDER BY r.created_at DESC');
+    expect(params).toEqual(['user-1', 20, 0]);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ data: [expect.objectContaining({ id: 'review-1' })] }),
+    );
+  });
+});
+
 describe('ReviewController.updateReview', () => {
   it('recomputes the provider rating when the rating itself changes', async () => {
     mockQuery.mockResolvedValueOnce({ rows: [{ id: 'review-1', reviewee_id: 'provider-user-1' }] });

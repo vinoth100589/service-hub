@@ -64,6 +64,28 @@ export class ReviewController {
     }
   }
 
+  static async listMyReviews(req: Request, res: Response) {
+    try {
+      if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+
+      const { limit = 20, offset = 0 } = req.query;
+      const result = await query(
+        `SELECT r.*, s.name as service_name, p.business_name
+         FROM reviews r
+         JOIN bookings b ON r.booking_id = b.id
+         JOIN services s ON b.service_id = s.id
+         JOIN providers p ON b.provider_id = p.id
+         WHERE r.reviewer_id = $1
+         ORDER BY r.created_at DESC LIMIT $2 OFFSET $3`,
+        [req.user.id, limit, offset]
+      );
+
+      return res.status(200).json({ data: result.rows });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
   static async getReview(req: Request, res: Response) {
     try {
       const result = await query('SELECT * FROM reviews WHERE id = $1', [req.params.id]);
