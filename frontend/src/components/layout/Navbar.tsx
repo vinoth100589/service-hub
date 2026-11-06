@@ -31,6 +31,11 @@ export default function Navbar() {
               Messages
             </Link>
           )}
+          {isAuthenticated && (
+            <Link to="/favorites" className="hover:text-primary-700">
+              Saved
+            </Link>
+          )}
           {isAuthenticated && user?.user_type === 'provider' && (
             <Link to="/provider/dashboard" className="hover:text-primary-700">
               Provider Dashboard
