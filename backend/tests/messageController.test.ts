@@ -111,3 +111,23 @@ describe('MessageController.sendMessage', () => {
     expect(res.status).toHaveBeenCalledWith(404);
   });
 });
+
+// Regression coverage: bookings' primary key column is `id`, never
+// `booking_id` (only foreign-key columns on other tables are named that) —
+// so `SELECT b.*` alone never produces a `booking_id` field, even though
+// every frontend consumer (MessagesPage, the Conversation type) keys
+// conversations by `booking_id`. Without an explicit `b.id as booking_id`
+// alias, every conversation's booking_id came back undefined and the page
+// could never select or load a single one.
+describe('MessageController.getConversations', () => {
+  it('aliases the booking primary key as booking_id for the frontend', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    const req = mockReq();
+    const res = mockRes();
+    await MessageController.getConversations(req, res);
+
+    const [sql] = mockQuery.mock.calls[0];
+    expect(sql).toContain('b.id as booking_id');
+  });
+});

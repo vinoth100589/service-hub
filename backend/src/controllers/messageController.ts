@@ -94,7 +94,7 @@ export class MessageController {
       if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
 
       const result = await query(
-        `SELECT DISTINCT b.*, s.name,
+        `SELECT DISTINCT b.id as booking_id, b.*, s.name,
          CASE WHEN b.user_id = $1 THEN p.business_name ELSE cu.first_name || ' ' || cu.last_name END as other_user_name,
          CASE WHEN b.user_id = $1 THEN p.user_id ELSE b.user_id END as other_user_id,
          m.content as last_message, m.created_at as last_message_time

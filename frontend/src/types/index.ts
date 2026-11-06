@@ -115,6 +115,8 @@ export interface Message {
 
 export interface Conversation {
   booking_id: string
+  other_user_id: string
+  other_user_name: string
   last_message: string
   last_message_time: string
 }
