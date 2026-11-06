@@ -43,7 +43,12 @@ export class LocationService {
     return {
       services: result.rows.map((row: any) => ({
         ...row,
-        distance_km: (row.distance_meters / 1000).toFixed(2),
+        // Must stay a number, not a string: the frontend's ServiceCard only
+        // renders the "X km away" badge when `typeof distance_km === 'number'`
+        // (see frontend/src/types/index.ts's Service.distance_km and
+        // ServiceCard.tsx) — .toFixed() on its own returns a string and used
+        // to make the badge silently never render for nearby-search results.
+        distance_km: Number((row.distance_meters / 1000).toFixed(2)),
       })),
       total: result.rows.length > 0 ? result.rows[0].total_count : 0,
     };
