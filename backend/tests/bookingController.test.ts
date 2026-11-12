@@ -8,6 +8,7 @@ jest.mock('@services/notificationService', () => ({
 
 import { Request, Response } from 'express';
 import { query } from '@config/database';
+import { NotificationService } from '@services/notificationService';
 import { BookingController } from '../src/controllers/bookingController';
 
 const mockQuery = query as jest.Mock;
@@ -25,6 +26,7 @@ function mockReq(overrides: Partial<Request> = {}): Request {
 
 beforeEach(() => {
   mockQuery.mockReset();
+  (NotificationService.create as jest.Mock).mockReset();
 });
 
 // A real DB only returns a row when every WHERE condition (ownership AND
@@ -78,11 +80,27 @@ describe('BookingController status-transition guards', () => {
     expect(res.status).toHaveBeenCalledWith(404);
   });
 
-  it('cancelBooking succeeds for a booking still in requested or accepted state', async () => {
-    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'booking-1', status: 'cancelled' }] });
+  it('cancelBooking succeeds for a booking still in requested or accepted state and notifies the provider', async () => {
+    mockQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          id: 'booking-1',
+          status: 'cancelled',
+          service_name: 'Plumbing',
+          provider_user_id: 'provider-user-1',
+        },
+      ],
+    });
     const res = mockRes();
     await BookingController.cancelBooking(mockReq(), res);
 
     expect(res.status).toHaveBeenCalledWith(200);
+    expect(NotificationService.create).toHaveBeenCalledWith(
+      'provider-user-1',
+      'booking_cancelled',
+      expect.any(String),
+      expect.stringContaining('Plumbing'),
+      'booking-1',
+    );
   });
 });

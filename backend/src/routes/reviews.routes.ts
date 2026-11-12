@@ -10,6 +10,9 @@ router.post('/', authMiddleware, [
   body('rating').isInt({ min: 1, max: 5 }),
 ], ReviewController.submitReview);
 
+// The frontend's reviewService.list() (reviews the current user has
+// written) called this route before it existed — it previously 404'd.
+router.get('/', authMiddleware, ReviewController.listMyReviews);
 router.get('/:id', ReviewController.getReview);
 router.post('/:id/helpful', authMiddleware, ReviewController.toggleHelpful);
 router.put('/:id', authMiddleware, ReviewController.updateReview);

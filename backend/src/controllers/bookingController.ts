@@ -189,14 +189,26 @@ export class BookingController {
       if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
 
       const result = await query(
-        `UPDATE bookings SET status = 'cancelled', cancelled_at = NOW(), cancelled_by = 'user'
-         WHERE id = $1 AND user_id = $2 AND status IN ('requested', 'accepted')
-         RETURNING *`,
+        `UPDATE bookings b SET status = 'cancelled', cancelled_at = NOW(), cancelled_by = 'user'
+         WHERE b.id = $1 AND b.user_id = $2 AND b.status IN ('requested', 'accepted')
+         RETURNING *, (SELECT name FROM services WHERE id = b.service_id) as service_name,
+                   (SELECT user_id FROM providers WHERE id = b.provider_id) as provider_user_id`,
         [req.params.id, req.user.id]
       );
 
       if (!result.rows.length) return res.status(404).json({ error: 'Booking not found' });
-      return res.status(200).json({ message: 'Booking cancelled', data: result.rows[0] });
+      const booking = result.rows[0];
+      // 'booking_cancelled' was declared as a NotificationType but never
+      // actually dispatched anywhere — the provider had no way to learn a
+      // customer cancelled except by noticing the status change themselves.
+      NotificationService.create(
+        booking.provider_user_id,
+        'booking_cancelled',
+        'Booking cancelled',
+        `${booking.service_name} was cancelled by the customer`,
+        booking.id
+      );
+      return res.status(200).json({ message: 'Booking cancelled', data: booking });
     } catch (error: any) {
       return res.status(500).json({ error: error.message });
     }

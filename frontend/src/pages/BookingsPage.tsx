@@ -7,8 +7,9 @@ import { useAuthStore } from '@store/authStore'
 import type { Booking, BookingStatus } from '@/types'
 
 const STATUS_STYLES: Record<BookingStatus, string> = {
-  pending: 'bg-amber-50 text-amber-700',
+  requested: 'bg-amber-50 text-amber-700',
   accepted: 'bg-blue-50 text-blue-700',
+  in_progress: 'bg-indigo-50 text-indigo-700',
   completed: 'bg-green-50 text-green-700',
   rejected: 'bg-red-50 text-red-700',
   cancelled: 'bg-gray-100 text-gray-600',
@@ -82,7 +83,7 @@ export default function BookingsPage() {
               {booking.notes && <p className="text-sm text-gray-500">Notes: {booking.notes}</p>}
 
               <div className="flex flex-wrap gap-2 pt-2">
-                {isProvider && booking.status === 'pending' && (
+                {isProvider && booking.status === 'requested' && (
                   <>
                     <button
                       className="btn-primary"
@@ -109,7 +110,7 @@ export default function BookingsPage() {
                     Mark complete
                   </button>
                 )}
-                {!isProvider && ['pending', 'accepted'].includes(booking.status) && (
+                {!isProvider && ['requested', 'accepted'].includes(booking.status) && (
                   <button
                     className="btn-secondary"
                     disabled={actioningId === booking.id}

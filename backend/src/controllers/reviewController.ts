@@ -32,6 +32,14 @@ export class ReviewController {
       );
       if (!bookingResult.rows.length) return res.status(400).json({ error: 'Invalid or incomplete booking' });
 
+      // reviews.booking_id is UNIQUE — without this check, a second review
+      // attempt on the same booking hits that constraint directly and the
+      // generic catch below returns the raw Postgres error message as a 500.
+      const existingReview = await query('SELECT id FROM reviews WHERE booking_id = $1', [booking_id]);
+      if (existingReview.rows.length) {
+        return res.status(400).json({ error: 'You have already reviewed this booking' });
+      }
+
       const reviewId = uuidv4();
       const result = await query(
         `INSERT INTO reviews (id, booking_id, reviewer_id, reviewee_id, rating, title, content, cleanliness_rating, professionalism_rating, punctuality_rating, value_rating)
@@ -51,6 +59,28 @@ export class ReviewController {
       );
 
       return res.status(201).json({ message: 'Review submitted', data: result.rows[0] });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
+  static async listMyReviews(req: Request, res: Response) {
+    try {
+      if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+
+      const { limit = 20, offset = 0 } = req.query;
+      const result = await query(
+        `SELECT r.*, s.name as service_name, p.business_name
+         FROM reviews r
+         JOIN bookings b ON r.booking_id = b.id
+         JOIN services s ON b.service_id = s.id
+         JOIN providers p ON b.provider_id = p.id
+         WHERE r.reviewer_id = $1
+         ORDER BY r.created_at DESC LIMIT $2 OFFSET $3`,
+        [req.user.id, limit, offset]
+      );
+
+      return res.status(200).json({ data: result.rows });
     } catch (error: any) {
       return res.status(500).json({ error: error.message });
     }

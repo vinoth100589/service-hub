@@ -116,3 +116,24 @@ describe('ServiceService.listServices', () => {
     expect(result.services).toEqual([]);
   });
 });
+
+describe('ServiceService.getServiceById', () => {
+  it('selects the provider\'s total_bookings so the detail page can show it', async () => {
+    // Regression test: the frontend's service detail page displays
+    // "N completed bookings" from this row, but the SELECT list used to
+    // omit p.total_bookings entirely (only the separate getProviderProfile
+    // query selected it), so the field was always undefined here.
+    mockQuery.mockResolvedValue({ rows: [{ id: 'service-1' }] });
+
+    await ServiceService.getServiceById('service-1');
+    const { sql } = lastCall();
+
+    expect(sql).toContain('p.total_bookings');
+  });
+
+  it('throws when the service does not exist', async () => {
+    mockQuery.mockResolvedValue({ rows: [] });
+
+    await expect(ServiceService.getServiceById('missing')).rejects.toThrow('Service not found');
+  });
+});

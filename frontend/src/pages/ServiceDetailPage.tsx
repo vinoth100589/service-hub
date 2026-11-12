@@ -5,6 +5,7 @@ import RatingStars from '@components/common/RatingStars'
 import LoadingSpinner from '@components/common/LoadingSpinner'
 import { serviceService } from '@services/serviceService'
 import { bookingService } from '@services/bookingService'
+import { favoriteService } from '@services/favoriteService'
 import { useAuthStore } from '@store/authStore'
 import type { Review, Service } from '@/types'
 
@@ -16,6 +17,8 @@ export default function ServiceDetailPage() {
   const [service, setService] = useState<Service | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
+  const [isFavorited, setIsFavorited] = useState(false)
+  const [savingFavorite, setSavingFavorite] = useState(false)
 
   const [bookingForm, setBookingForm] = useState({
     scheduled_date: '',
@@ -31,11 +34,39 @@ export default function ServiceDetailPage() {
       .getById(serviceId)
       .then((res) => {
         setService(res.data)
-        setReviews((res.recent_reviews as Review[] | undefined) ?? [])
+        setReviews(res.data.recent_reviews ?? [])
       })
       .catch((err: Error) => toast.error(err.message))
       .finally(() => setLoading(false))
   }, [serviceId])
+
+  useEffect(() => {
+    if (!isAuthenticated || !service) return
+    favoriteService
+      .list()
+      .then((res) => setIsFavorited(res.data.some((f) => f.provider_id === service.provider_id)))
+      .catch(() => {})
+  }, [isAuthenticated, service])
+
+  const handleToggleFavorite = async () => {
+    if (!service) return
+    setSavingFavorite(true)
+    try {
+      if (isFavorited) {
+        await favoriteService.remove(service.provider_id)
+        setIsFavorited(false)
+        toast.success('Removed from saved providers')
+      } else {
+        await favoriteService.add(service.provider_id)
+        setIsFavorited(true)
+        toast.success('Provider saved')
+      }
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setSavingFavorite(false)
+    }
+  }
 
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -83,19 +114,29 @@ export default function ServiceDetailPage() {
           <p className="mt-4 text-gray-700">{service.description}</p>
           <p className="mt-4 text-lg font-semibold text-primary-700">{priceLabel}</p>
 
-          {service.provider && (
+          {service.business_name && (
             <div className="mt-6 border-t border-gray-100 pt-4">
               <p className="text-sm font-medium text-gray-900">
-                Provided by {service.provider.business_name}
+                Provided by {service.business_name}
               </p>
               <RatingStars
-                rating={service.provider.average_rating}
-                reviewCount={service.provider.total_reviews}
+                rating={service.average_rating ?? 0}
+                reviewCount={service.total_reviews ?? 0}
               />
               <p className="mt-1 text-xs text-gray-500">
-                {service.provider.total_bookings} completed bookings ·{' '}
-                {service.provider.verification_status}
+                {service.total_bookings ?? 0} completed bookings ·{' '}
+                {service.verification_status}
               </p>
+              {isAuthenticated && (
+                <button
+                  type="button"
+                  className={isFavorited ? 'btn-secondary mt-3' : 'btn-primary mt-3'}
+                  disabled={savingFavorite}
+                  onClick={handleToggleFavorite}
+                >
+                  {isFavorited ? 'Saved' : 'Save provider'}
+                </button>
+              )}
             </div>
           )}
         </div>

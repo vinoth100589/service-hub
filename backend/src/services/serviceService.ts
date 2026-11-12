@@ -184,7 +184,7 @@ export class ServiceService {
         s.base_price, s.price_unit, s.duration_minutes, s.rating, s.review_count,
         s.images, s.is_featured, s.is_active, s.created_at, s.updated_at,
         p.id as provider_id, p.business_name, p.average_rating, p.total_reviews,
-        p.verification_status, p.response_time_minutes, p.cancellation_rate,
+        p.total_bookings, p.verification_status, p.response_time_minutes, p.cancellation_rate,
         u.id as user_id, u.first_name, u.last_name, u.avatar_url, u.bio
       FROM services s
       JOIN providers p ON s.provider_id = p.id

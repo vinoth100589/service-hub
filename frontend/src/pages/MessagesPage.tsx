@@ -41,7 +41,11 @@ export default function MessagesPage() {
     e.preventDefault()
     if (!activeBookingId || !content.trim() || !user) return
 
-    const receiver = messages.find((m) => m.sender_id !== user.id)?.sender_id
+    // other_user_id comes straight from the booking's participants (see
+    // MessageController.getConversations), so it's known even for a
+    // conversation with no messages sent yet — unlike scanning `messages`
+    // for someone else's sender_id, which fails on the very first message.
+    const receiver = conversations.find((c) => c.booking_id === activeBookingId)?.other_user_id
     if (!receiver) {
       toast.error('No recipient found for this conversation yet.')
       return

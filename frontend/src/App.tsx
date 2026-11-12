@@ -8,6 +8,7 @@ import LoginPage from '@pages/LoginPage'
 import RegisterPage from '@pages/RegisterPage'
 import BookingsPage from '@pages/BookingsPage'
 import MessagesPage from '@pages/MessagesPage'
+import FavoritesPage from '@pages/FavoritesPage'
 import ProfilePage from '@pages/ProfilePage'
 import ProviderDashboardPage from '@pages/ProviderDashboardPage'
 import AdminDashboardPage from '@pages/AdminDashboardPage'
@@ -27,6 +28,7 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="bookings" element={<BookingsPage />} />
             <Route path="messages" element={<MessagesPage />} />
+            <Route path="favorites" element={<FavoritesPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
 

@@ -48,6 +48,38 @@ describe('recomputeProviderRating', () => {
   });
 });
 
+// Regression coverage: the frontend's reviewService.list() has always
+// called GET /reviews to fetch the current user's own reviews, but no such
+// route (or controller method) existed until now — the call 404'd.
+describe('ReviewController.listMyReviews', () => {
+  it('rejects an unauthenticated request', async () => {
+    const req = mockReq({ user: undefined } as any);
+    const res = mockRes();
+    await ReviewController.listMyReviews(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
+
+  it('returns only reviews written by the current user, newest first', async () => {
+    mockQuery.mockResolvedValueOnce({
+      rows: [{ id: 'review-1', reviewer_id: 'user-1', service_name: 'Deep clean' }],
+    });
+
+    const req = mockReq();
+    const res = mockRes();
+    await ReviewController.listMyReviews(req, res);
+
+    const [sql, params] = mockQuery.mock.calls[0];
+    expect(sql).toContain('WHERE r.reviewer_id = $1');
+    expect(sql).toContain('ORDER BY r.created_at DESC');
+    expect(params).toEqual(['user-1', 20, 0]);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ data: [expect.objectContaining({ id: 'review-1' })] }),
+    );
+  });
+});
+
 describe('ReviewController.updateReview', () => {
   it('recomputes the provider rating when the rating itself changes', async () => {
     mockQuery.mockResolvedValueOnce({ rows: [{ id: 'review-1', reviewee_id: 'provider-user-1' }] });
@@ -111,6 +143,7 @@ describe('ReviewController.deleteReview', () => {
 describe('ReviewController.submitReview', () => {
   it('recomputes the provider rating after inserting the new review', async () => {
     mockQuery.mockResolvedValueOnce({ rows: [{ reviewee_id: 'provider-user-1' }] }); // booking lookup
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // duplicate-review check (none found)
     mockQuery.mockResolvedValueOnce({ rows: [{ id: 'review-1' }] }); // insert
     mockQuery.mockResolvedValueOnce({ rows: [] }); // recompute UPDATE
 
@@ -118,9 +151,27 @@ describe('ReviewController.submitReview', () => {
     const res = mockRes();
     await ReviewController.submitReview(req, res);
 
-    expect(mockQuery).toHaveBeenCalledTimes(3);
-    expect(mockQuery.mock.calls[2][0]).toContain('UPDATE providers SET average_rating');
-    expect(mockQuery.mock.calls[2][1]).toEqual(['provider-user-1']);
+    expect(mockQuery).toHaveBeenCalledTimes(4);
+    expect(mockQuery.mock.calls[3][0]).toContain('UPDATE providers SET average_rating');
+    expect(mockQuery.mock.calls[3][1]).toEqual(['provider-user-1']);
     expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('rejects a second review for a booking that already has one, instead of hitting the UNIQUE constraint', async () => {
+    // Regression test: reviews.booking_id is UNIQUE — without this guard the
+    // INSERT itself throws and the generic catch returns a raw Postgres
+    // error message as a 500 instead of a clean 400.
+    mockQuery.mockResolvedValueOnce({ rows: [{ reviewee_id: 'provider-user-1' }] }); // booking lookup
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'existing-review' }] }); // duplicate-review check (found)
+
+    const req = mockReq({ body: { booking_id: 'booking-1', rating: 5 } } as any);
+    const res = mockRes();
+    await ReviewController.submitReview(req, res);
+
+    expect(mockQuery).toHaveBeenCalledTimes(2);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.stringContaining('already reviewed') }),
+    );
   });
 });

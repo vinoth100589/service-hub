@@ -2,7 +2,30 @@ import { Request, Response } from 'express';
 import { query, getClient } from '@config/database';
 import { v4 as uuidv4 } from 'uuid';
 import { StripeService } from '@services/stripeService';
+import { NotificationService } from '@services/notificationService';
 import { computeDiscount } from '@controllers/promoController';
+
+// Shared by confirmPayment and the Stripe webhook — both mark a payment
+// completed, and 'payment_received' was declared as a NotificationType but
+// never actually dispatched, leaving the provider with no way to learn a
+// payment came in except by checking their payouts page themselves.
+async function notifyProviderOfPayment(paymentId: string) {
+  const payout = await query(
+    `SELECT pay.provider_payout_amount, pr.user_id as provider_user_id
+     FROM payments pay JOIN providers pr ON pay.provider_id = pr.id
+     WHERE pay.id = $1`,
+    [paymentId]
+  );
+  if (!payout.rows.length) return;
+  const { provider_payout_amount, provider_user_id } = payout.rows[0];
+  NotificationService.create(
+    provider_user_id,
+    'payment_received',
+    'Payment received',
+    `You received a payment of $${provider_payout_amount} for a completed booking`,
+    paymentId
+  );
+}
 
 export class PaymentController {
   static async createPaymentIntent(req: Request, res: Response) {
@@ -126,6 +149,8 @@ export class PaymentController {
         [payment_id]
       );
 
+      await notifyProviderOfPayment(payment_id);
+
       return res.status(200).json({ message: 'Payment confirmed', data: result.rows[0] });
     } catch (error: any) {
       return res.status(500).json({ error: error.message });
@@ -221,8 +246,9 @@ export class PaymentController {
       switch (event.type) {
         case 'payment_intent.succeeded': {
           const intent = event.data.object as { id: string };
-          await query(
-            `UPDATE payments SET status = 'completed', processed_at = NOW() WHERE stripe_payment_intent_id = $1 AND status != 'completed'`,
+          const updated = await query(
+            `UPDATE payments SET status = 'completed', processed_at = NOW() WHERE stripe_payment_intent_id = $1 AND status != 'completed'
+             RETURNING id`,
             [intent.id]
           );
           await query(
@@ -230,6 +256,9 @@ export class PaymentController {
              WHERE id = (SELECT booking_id FROM payments WHERE stripe_payment_intent_id = $1) AND status = 'accepted'`,
             [intent.id]
           );
+          if (updated.rows.length) {
+            await notifyProviderOfPayment(updated.rows[0].id);
+          }
           break;
         }
         case 'payment_intent.payment_failed': {
