@@ -147,6 +147,18 @@ export interface AdminDashboard {
   total_revenue: number
 }
 
+export interface Notification {
+  id: string
+  user_id: string
+  type: string
+  title: string
+  content: string
+  related_entity_id?: string
+  is_read: boolean
+  read_at?: string
+  created_at: string
+}
+
 export interface ApiListResponse<T> {
   message?: string
   data: T[]
