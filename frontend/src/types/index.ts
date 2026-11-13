@@ -147,6 +147,25 @@ export interface AdminDashboard {
   total_revenue: number
 }
 
+export type DisputeStatus = 'open' | 'under_review' | 'resolved' | 'closed'
+
+export interface Dispute {
+  id: string
+  booking_id: string
+  initiated_by: string
+  status: DisputeStatus
+  title: string
+  description: string
+  evidence_urls?: string[]
+  resolution?: string
+  resolved_by_admin?: string
+  refund_amount?: number
+  created_at: string
+  resolved_at?: string
+  first_name: string
+  last_name: string
+}
+
 export interface Notification {
   id: string
   user_id: string

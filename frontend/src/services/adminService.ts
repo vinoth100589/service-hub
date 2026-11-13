@@ -1,5 +1,10 @@
 import { api } from './api'
-import type { AdminDashboard, ApiItemResponse, ApiListResponse, Provider } from '@/types'
+import type { AdminDashboard, ApiItemResponse, ApiListResponse, Dispute, Provider } from '@/types'
+
+export interface ResolveDisputePayload {
+  resolution: string
+  refund_amount?: number
+}
 
 export const adminService = {
   getDashboard: () =>
@@ -13,4 +18,11 @@ export const adminService = {
 
   rejectProvider: (providerId: string) =>
     api.put<ApiItemResponse<Provider>>(`/admin/providers/${providerId}/reject`).then((r) => r.data),
+
+  listDisputes: () => api.get<ApiListResponse<Dispute>>('/admin/disputes').then((r) => r.data),
+
+  resolveDispute: (disputeId: string, payload: ResolveDisputePayload) =>
+    api
+      .put<ApiItemResponse<Dispute>>(`/admin/disputes/${disputeId}/resolve`, payload)
+      .then((r) => r.data),
 }
