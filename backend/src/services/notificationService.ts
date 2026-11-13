@@ -10,7 +10,9 @@ export type NotificationType =
   | 'message_received'
   | 'review_posted'
   | 'payment_received'
-  | 'dispute_resolved';
+  | 'dispute_resolved'
+  | 'provider_verified'
+  | 'provider_rejected';
 
 export class NotificationService {
   // Fire-and-forget: a failed notification insert should never break the
