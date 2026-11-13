@@ -12,6 +12,7 @@ export default function ProfilePage() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
   const [applying, setApplying] = useState(false)
+  const [applied, setApplied] = useState(false)
   const [applyForm, setApplyForm] = useState({ business_name: '', business_description: '' })
 
   useEffect(() => {
@@ -26,12 +27,17 @@ export default function ProfilePage() {
     e.preventDefault()
     setApplying(true)
     try {
-      await providerService.apply({
+      const res = await providerService.apply({
         business_name: applyForm.business_name,
         business_description: applyForm.business_description || undefined,
         service_categories: [],
       })
-      toast.success('Provider application submitted!')
+      // The backend changes user_type server-side immediately, but this
+      // session's JWT/local user still says 'customer' until a fresh login
+      // issues a new one — surface the backend's own message rather than a
+      // generic one so the user knows why provider features aren't showing up.
+      toast.success(res.message ?? 'Provider application submitted!')
+      setApplied(true)
     } catch (err) {
       toast.error((err as Error).message)
     } finally {
@@ -54,37 +60,45 @@ export default function ProfilePage() {
       {user.user_type === 'customer' && (
         <div className="card p-6">
           <h2 className="mb-4 text-lg font-semibold text-gray-900">Become a provider</h2>
-          <form className="flex flex-col gap-4" onSubmit={handleApply}>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">
-                Business name
-              </label>
-              <input
-                required
-                className="input"
-                value={applyForm.business_name}
-                onChange={(e) =>
-                  setApplyForm({ ...applyForm, business_name: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">
-                Business description
-              </label>
-              <textarea
-                className="input"
-                rows={3}
-                value={applyForm.business_description}
-                onChange={(e) =>
-                  setApplyForm({ ...applyForm, business_description: e.target.value })
-                }
-              />
-            </div>
-            <button type="submit" className="btn-primary" disabled={applying}>
-              {applying ? 'Submitting…' : 'Apply as provider'}
-            </button>
-          </form>
+          {applied ? (
+            <p className="text-sm text-gray-600">
+              Application submitted. Log out and log back in to access provider features.
+            </p>
+          ) : (
+            <form className="flex flex-col gap-4" onSubmit={handleApply}>
+              <div>
+                <label htmlFor="apply-business-name" className="mb-1 block text-xs font-medium text-gray-600">
+                  Business name
+                </label>
+                <input
+                  id="apply-business-name"
+                  required
+                  className="input"
+                  value={applyForm.business_name}
+                  onChange={(e) =>
+                    setApplyForm({ ...applyForm, business_name: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <label htmlFor="apply-business-description" className="mb-1 block text-xs font-medium text-gray-600">
+                  Business description
+                </label>
+                <textarea
+                  id="apply-business-description"
+                  className="input"
+                  rows={3}
+                  value={applyForm.business_description}
+                  onChange={(e) =>
+                    setApplyForm({ ...applyForm, business_description: e.target.value })
+                  }
+                />
+              </div>
+              <button type="submit" className="btn-primary" disabled={applying}>
+                {applying ? 'Submitting…' : 'Apply as provider'}
+              </button>
+            </form>
+          )}
         </div>
       )}
 

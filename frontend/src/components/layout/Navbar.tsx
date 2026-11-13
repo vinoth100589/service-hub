@@ -1,5 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@store/authStore'
+import NotificationBell from './NotificationBell'
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuthStore()
@@ -51,6 +52,7 @@ export default function Navbar() {
         <div className="flex items-center gap-3">
           {isAuthenticated && user ? (
             <>
+              <NotificationBell />
               <Link
                 to="/profile"
                 className="text-sm font-medium text-gray-700 hover:text-primary-700"
