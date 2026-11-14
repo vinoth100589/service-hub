@@ -321,7 +321,7 @@ export class ServiceService {
       FROM services s
       JOIN providers p ON s.provider_id = p.id
       JOIN users u ON p.user_id = u.id
-      WHERE s.is_active = true AND s.is_featured = true
+      WHERE s.is_active = true AND s.is_featured = true AND p.verification_status = 'verified'
       ORDER BY s.rating DESC
       LIMIT $1`,
       [limit]
