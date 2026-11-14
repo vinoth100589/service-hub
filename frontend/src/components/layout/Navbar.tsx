@@ -55,8 +55,19 @@ export default function Navbar() {
               <NotificationBell />
               <Link
                 to="/profile"
-                className="text-sm font-medium text-gray-700 hover:text-primary-700"
+                className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-primary-700"
               >
+                {user.avatar_url ? (
+                  <img
+                    src={user.avatar_url}
+                    alt={user.first_name}
+                    className="h-7 w-7 rounded-full object-cover"
+                  />
+                ) : (
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-50 text-xs font-semibold text-primary-700">
+                    {user.first_name[0]}
+                  </span>
+                )}
                 {user.first_name}
               </Link>
               <button className="btn-secondary" onClick={handleLogout}>
