@@ -94,3 +94,86 @@ describe('AdminController.resolveDispute', () => {
     expect(res.status).toHaveBeenCalledWith(200);
   });
 });
+
+describe('AdminController.verifyProvider', () => {
+  it('rejects a non-admin user', async () => {
+    const req = mockReq({ user: { id: 'user-1', user_type: 'customer' }, params: { provider_id: 'provider-1' } } as any);
+    const res = mockRes();
+    await AdminController.verifyProvider(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
+
+  it('404s when the provider does not exist', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    const req = mockReq({ params: { provider_id: 'missing' } } as any);
+    const res = mockRes();
+    await AdminController.verifyProvider(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('notifies the provider once verified', async () => {
+    // Regression test: provider_verified was never dispatched anywhere — a
+    // provider had no way to learn their application was approved except by
+    // checking their own profile.
+    mockQuery.mockResolvedValueOnce({
+      rows: [{ id: 'provider-1', user_id: 'provider-user-1', business_name: 'Sparkle Cleaners' }],
+    });
+
+    const req = mockReq({ params: { provider_id: 'provider-1' } } as any);
+    const res = mockRes();
+    await AdminController.verifyProvider(req, res);
+
+    expect(NotificationService.create).toHaveBeenCalledWith(
+      'provider-user-1',
+      'provider_verified',
+      expect.any(String),
+      expect.stringContaining('Sparkle Cleaners'),
+      'provider-1',
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+});
+
+describe('AdminController.rejectProvider', () => {
+  it('rejects a non-admin user', async () => {
+    const req = mockReq({ user: { id: 'user-1', user_type: 'customer' }, params: { provider_id: 'provider-1' } } as any);
+    const res = mockRes();
+    await AdminController.rejectProvider(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
+
+  it('404s when the provider does not exist', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    const req = mockReq({ params: { provider_id: 'missing' } } as any);
+    const res = mockRes();
+    await AdminController.rejectProvider(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('notifies the provider once rejected', async () => {
+    mockQuery.mockResolvedValueOnce({
+      rows: [{ id: 'provider-1', user_id: 'provider-user-1', business_name: 'Sparkle Cleaners' }],
+    });
+
+    const req = mockReq({ params: { provider_id: 'provider-1' } } as any);
+    const res = mockRes();
+    await AdminController.rejectProvider(req, res);
+
+    expect(NotificationService.create).toHaveBeenCalledWith(
+      'provider-user-1',
+      'provider_rejected',
+      expect.any(String),
+      expect.stringContaining('Sparkle Cleaners'),
+      'provider-1',
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+});

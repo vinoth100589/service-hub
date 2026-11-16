@@ -137,3 +137,19 @@ describe('ServiceService.getServiceById', () => {
     await expect(ServiceService.getServiceById('missing')).rejects.toThrow('Service not found');
   });
 });
+
+describe('ServiceService.getFeaturedServices', () => {
+  it('only returns services from verified providers', async () => {
+    // Regression test: unlike listServices/findServicesNearby/
+    // findServicesByCategory, this query used to omit the
+    // verification_status filter entirely — an admin marking a service
+    // is_featured would surface it on the public homepage even if its
+    // provider was still pending review or had been rejected.
+    mockQuery.mockResolvedValue({ rows: [] });
+
+    await ServiceService.getFeaturedServices();
+    const { sql } = lastCall();
+
+    expect(sql).toContain("p.verification_status = 'verified'");
+  });
+});

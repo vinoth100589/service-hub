@@ -3,20 +3,33 @@ import toast from 'react-hot-toast'
 import LoadingSpinner from '@components/common/LoadingSpinner'
 import EmptyState from '@components/common/EmptyState'
 import { adminService } from '@services/adminService'
-import type { AdminDashboard, Provider } from '@/types'
+import type { AdminDashboard, Dispute, Provider } from '@/types'
+
+interface ResolutionDraft {
+  resolution: string
+  refund_amount: string
+}
 
 export default function AdminDashboardPage() {
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null)
   const [pendingProviders, setPendingProviders] = useState<Provider[]>([])
+  const [disputes, setDisputes] = useState<Dispute[]>([])
   const [loading, setLoading] = useState(true)
   const [actioningId, setActioningId] = useState<string | null>(null)
+  const [resolvingId, setResolvingId] = useState<string | null>(null)
+  const [resolutionDrafts, setResolutionDrafts] = useState<Record<string, ResolutionDraft>>({})
 
   const load = () => {
     setLoading(true)
-    Promise.allSettled([adminService.getDashboard(), adminService.getPendingProviders()])
-      .then(([dashboardRes, providersRes]) => {
+    Promise.allSettled([
+      adminService.getDashboard(),
+      adminService.getPendingProviders(),
+      adminService.listDisputes(),
+    ])
+      .then(([dashboardRes, providersRes, disputesRes]) => {
         if (dashboardRes.status === 'fulfilled') setDashboard(dashboardRes.value.data)
         if (providersRes.status === 'fulfilled') setPendingProviders(providersRes.value.data)
+        if (disputesRes.status === 'fulfilled') setDisputes(disputesRes.value.data)
       })
       .catch((err: Error) => toast.error(err.message))
       .finally(() => setLoading(false))
@@ -39,6 +52,39 @@ export default function AdminDashboardPage() {
       toast.error((err as Error).message)
     } finally {
       setActioningId(null)
+    }
+  }
+
+  const getDraft = (disputeId: string): ResolutionDraft =>
+    resolutionDrafts[disputeId] ?? { resolution: '', refund_amount: '' }
+
+  const setDraft = (disputeId: string, draft: Partial<ResolutionDraft>) => {
+    setResolutionDrafts((prev) => ({ ...prev, [disputeId]: { ...getDraft(disputeId), ...draft } }))
+  }
+
+  const handleResolve = async (disputeId: string) => {
+    const draft = getDraft(disputeId)
+    if (!draft.resolution.trim()) {
+      toast.error('Resolution is required')
+      return
+    }
+
+    setResolvingId(disputeId)
+    try {
+      await adminService.resolveDispute(disputeId, {
+        resolution: draft.resolution.trim(),
+        refund_amount: draft.refund_amount ? Number(draft.refund_amount) : undefined,
+      })
+      toast.success('Dispute resolved')
+      setResolutionDrafts((prev) => {
+        const { [disputeId]: _removed, ...rest } = prev
+        return rest
+      })
+      load()
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setResolvingId(null)
     }
   }
 
@@ -96,6 +142,60 @@ export default function AdminDashboardPage() {
                 </div>
               </li>
             ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="card p-6">
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">Open disputes</h2>
+        {disputes.length === 0 ? (
+          <EmptyState title="No open disputes" />
+        ) : (
+          <ul className="flex flex-col gap-4">
+            {disputes.map((dispute) => {
+              const draft = getDraft(dispute.id)
+              return (
+                <li key={dispute.id} className="rounded-lg border border-gray-100 p-4">
+                  <p className="text-sm font-medium text-gray-900">{dispute.title}</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Filed by {dispute.first_name} {dispute.last_name}
+                  </p>
+                  <p className="mt-2 text-sm text-gray-700">{dispute.description}</p>
+
+                  <div className="mt-4 flex flex-col gap-2">
+                    <label htmlFor={`resolution-${dispute.id}`} className="text-xs font-medium text-gray-600">
+                      Resolution
+                    </label>
+                    <textarea
+                      id={`resolution-${dispute.id}`}
+                      className="input"
+                      rows={2}
+                      value={draft.resolution}
+                      onChange={(e) => setDraft(dispute.id, { resolution: e.target.value })}
+                    />
+                    <label htmlFor={`refund-${dispute.id}`} className="text-xs font-medium text-gray-600">
+                      Refund amount (optional)
+                    </label>
+                    <input
+                      id={`refund-${dispute.id}`}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="input"
+                      value={draft.refund_amount}
+                      onChange={(e) => setDraft(dispute.id, { refund_amount: e.target.value })}
+                    />
+                    <button
+                      className="btn-primary self-start"
+                      disabled={resolvingId === dispute.id}
+                      onClick={() => handleResolve(dispute.id)}
+                    >
+                      {resolvingId === dispute.id ? 'Resolving…' : 'Resolve dispute'}
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>

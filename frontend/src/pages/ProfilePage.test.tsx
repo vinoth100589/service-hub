@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import ProfilePage from './ProfilePage'
 import { paymentService } from '@services/paymentService'
 import { providerService } from '@services/providerService'
+import { uploadService } from '@services/uploadService'
 import { useAuthStore } from '@store/authStore'
 import type { User } from '@/types'
 
@@ -13,6 +14,10 @@ vi.mock('@services/paymentService', () => ({
 
 vi.mock('@services/providerService', () => ({
   providerService: { apply: vi.fn() },
+}))
+
+vi.mock('@services/uploadService', () => ({
+  uploadService: { uploadAvatar: vi.fn() },
 }))
 
 vi.mock('react-hot-toast', () => ({
@@ -60,5 +65,33 @@ describe('ProfilePage become a provider', () => {
       await screen.findByText('Application submitted. Log out and log back in to access provider features.'),
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Apply as provider' })).not.toBeInTheDocument()
+  })
+})
+
+// Regression coverage for a previously missing feature: UploadController
+// has had a complete avatar-upload endpoint with no frontend consumer at
+// all, and avatar_url was never rendered anywhere despite being on the
+// User type.
+describe('ProfilePage avatar upload', () => {
+  it('uploads the selected file and updates the avatar shown on the page', async () => {
+    (uploadService.uploadAvatar as ReturnType<typeof vi.fn>).mockResolvedValue({
+      message: 'Avatar updated',
+      data: { avatar_url: 'https://example.com/avatars/jane.png' },
+    })
+
+    render(<ProfilePage />)
+
+    const file = new File(['avatar-bytes'], 'avatar.png', { type: 'image/png' })
+    const input = (await screen.findByText('Change photo')).querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement
+    fireEvent.change(input, { target: { files: [file] } })
+
+    await waitFor(() => expect(uploadService.uploadAvatar).toHaveBeenCalledWith(file))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Avatar updated'))
+    expect(await screen.findByAltText('Jane Doe')).toHaveAttribute(
+      'src',
+      'https://example.com/avatars/jane.png',
+    )
   })
 })

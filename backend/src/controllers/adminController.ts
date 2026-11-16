@@ -64,7 +64,18 @@ export class AdminController {
       );
 
       if (!result.rows.length) return res.status(404).json({ error: 'Provider not found' });
-      return res.status(200).json({ message: 'Provider verified', data: result.rows[0] });
+      const provider = result.rows[0];
+      // 'provider_verified' was never dispatched anywhere — a provider had
+      // no way to learn their application was approved except by checking
+      // their profile themselves.
+      NotificationService.create(
+        provider.user_id,
+        'provider_verified',
+        'Provider application approved',
+        `Your application for ${provider.business_name} has been verified. You can now list services.`,
+        provider.id
+      );
+      return res.status(200).json({ message: 'Provider verified', data: provider });
     } catch (error: any) {
       return res.status(500).json({ error: error.message });
     }
@@ -86,7 +97,17 @@ export class AdminController {
       );
 
       if (!result.rows.length) return res.status(404).json({ error: 'Provider not found' });
-      return res.status(200).json({ message: 'Provider rejected', data: result.rows[0] });
+      const provider = result.rows[0];
+      // Same gap as verifyProvider — a rejected applicant was never told,
+      // and silently stayed on 'pending' from their own point of view.
+      NotificationService.create(
+        provider.user_id,
+        'provider_rejected',
+        'Provider application rejected',
+        `Your application for ${provider.business_name} was not approved.`,
+        provider.id
+      );
+      return res.status(200).json({ message: 'Provider rejected', data: provider });
     } catch (error: any) {
       return res.status(500).json({ error: error.message });
     }

@@ -4,16 +4,19 @@ import LoadingSpinner from '@components/common/LoadingSpinner'
 import EmptyState from '@components/common/EmptyState'
 import { paymentService } from '@services/paymentService'
 import { providerService } from '@services/providerService'
+import { uploadService } from '@services/uploadService'
 import { useAuthStore } from '@store/authStore'
 import type { Payment } from '@/types'
 
 export default function ProfilePage() {
   const user = useAuthStore((s) => s.user)
+  const setUser = useAuthStore((s) => s.setUser)
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
   const [applying, setApplying] = useState(false)
   const [applied, setApplied] = useState(false)
   const [applyForm, setApplyForm] = useState({ business_name: '', business_description: '' })
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
   useEffect(() => {
     paymentService
@@ -45,16 +48,57 @@ export default function ProfilePage() {
     }
   }
 
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !user) return
+
+    setUploadingAvatar(true)
+    try {
+      const res = await uploadService.uploadAvatar(file)
+      setUser({ ...user, avatar_url: res.data.avatar_url })
+      toast.success('Avatar updated')
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
   if (!user) return null
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="card p-6">
-        <h1 className="text-xl font-semibold text-gray-900">
-          {user.first_name} {user.last_name}
-        </h1>
-        <p className="text-sm text-gray-500">{user.email}</p>
-        <span className="badge mt-2 bg-primary-50 text-primary-700">{user.user_type}</span>
+      <div className="card flex items-center gap-4 p-6">
+        {user.avatar_url ? (
+          <img
+            src={user.avatar_url}
+            alt={`${user.first_name} ${user.last_name}`}
+            className="h-16 w-16 rounded-full object-cover"
+          />
+        ) : (
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-50 text-lg font-semibold text-primary-700">
+            {user.first_name[0]}
+            {user.last_name[0]}
+          </div>
+        )}
+        <div className="flex-1">
+          <h1 className="text-xl font-semibold text-gray-900">
+            {user.first_name} {user.last_name}
+          </h1>
+          <p className="text-sm text-gray-500">{user.email}</p>
+          <span className="badge mt-2 bg-primary-50 text-primary-700">{user.user_type}</span>
+        </div>
+        <label className="btn-secondary cursor-pointer">
+          {uploadingAvatar ? 'Uploading…' : 'Change photo'}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            disabled={uploadingAvatar}
+            onChange={handleAvatarChange}
+          />
+        </label>
       </div>
 
       {user.user_type === 'customer' && (
